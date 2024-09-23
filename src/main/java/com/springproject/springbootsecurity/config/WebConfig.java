@@ -1,17 +1,24 @@
 package com.springproject.springbootsecurity.config;
 
 import com.springproject.springbootsecurity.repository.UserRepository;
+import com.springproject.springbootsecurity.service.JwtService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.JdbcUserDetailsManager;
 import org.springframework.security.provisioning.UserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -23,12 +30,16 @@ import static org.springframework.security.config.Customizer.withDefaults;
 @Configuration
 @EnableWebSecurity
 public class WebConfig implements WebMvcConfigurer {
-    private final JwtTokenFilter jwtTokenFilter;
-    public WebConfig(
-            JwtTokenFilter jwtAuthenticationFilter
-    ) {
-        this.jwtTokenFilter = jwtAuthenticationFilter;
-    }
+
+    @Autowired @Lazy
+    private  JwtTokenFilter jwtTokenFilter;
+    @Autowired
+    private  JwtService jwtService;
+
+   /* public WebConfig(JwtTokenFilter jwtTokenFilter, JwtService jwtService) {
+        this.jwtTokenFilter = jwtTokenFilter;
+        this.jwtService = jwtService;
+    }*/
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -37,9 +48,10 @@ public class WebConfig implements WebMvcConfigurer {
                         .requestMatchers("/", "/login", "/register").permitAll()
                         .anyRequest().authenticated() // No role checks
                 )
-                .formLogin(formLogin ->
-                        formLogin.permitAll()
-                ).sessionManagement(sessionManagement -> sessionManagement
+                .formLogin(formLogin -> formLogin
+                .successHandler(authenticationSuccessHandler()) // Use custom success handler
+                .permitAll()
+        ).sessionManagement(sessionManagement -> sessionManagement
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS) // Use sessions if needed
                 ).cors(withDefaults())
                 .csrf(csrf -> csrf.disable());
@@ -59,30 +71,20 @@ public class WebConfig implements WebMvcConfigurer {
                 .allowCredentials(true)  // Allow credentials (e.g., cookies, session IDs)
                 .allowedHeaders("*");
     }
-//    @Bean
-//    public InMemoryUserDetailsManager inMemoryUserDetailsManager() {
-//        UserDetails user1 = User.builder()
-//                .username("user1")
-//                .password(passwordEncoder().encode("password1"))
-//                .roles("USER")
-//                .build();
-//
-//        UserDetails user2 = User.builder()
-//                .username("admin")
-//                .password(passwordEncoder().encode("admin"))
-//                .roles("ADMIN")
-//                .build();
-//
-//        return new InMemoryUserDetailsManager(user1, user2);
-//    }
 
+private AuthenticationSuccessHandler authenticationSuccessHandler() {
+    return (HttpServletRequest request, HttpServletResponse response, Authentication authentication) -> {
+        String username = authentication.getName();
+        String token = jwtService.generateToken(username);
 
-//    @Bean
-//    public UserDetailsManager userDetailsManager (DataSource dataSource) {
-//
-//        return  new JdbcUserDetailsManager(dataSource);
-//    }
-
+        // Set the token in the response header
+        response.setHeader("Authorization", "Bearer " + token);
+        System.out.println(token);
+        // Optionally, you can also set it in the response body
+        response.getWriter().write("{\"token\":\"" + token + "\"}");
+        response.getWriter().flush();
+    };
+}
     @Bean
     public UserDetailsManager userDetailsManager(DataSource dataSource) {
         JdbcUserDetailsManager manager = new JdbcUserDetailsManager(dataSource);
@@ -111,5 +113,38 @@ public class WebConfig implements WebMvcConfigurer {
 
 
 
+
+
+
+
+
+
+
+
+
+
+    //    @Bean
+//    public InMemoryUserDetailsManager inMemoryUserDetailsManager() {
+//        UserDetails user1 = User.builder()
+//                .username("user1")
+//                .password(passwordEncoder().encode("password1"))
+//                .roles("USER")
+//                .build();
+//
+//        UserDetails user2 = User.builder()
+//                .username("admin")
+//                .password(passwordEncoder().encode("admin"))
+//                .roles("ADMIN")
+//                .build();
+//
+//        return new InMemoryUserDetailsManager(user1, user2);
+//    }
+
+
+//    @Bean
+//    public UserDetailsManager userDetailsManager (DataSource dataSource) {
+//
+//        return  new JdbcUserDetailsManager(dataSource);
+//    }
 }
 
